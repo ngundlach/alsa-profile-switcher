@@ -1,0 +1,12 @@
+bin/
+*.exe
+dist/
+
+vendor/
+
+build/
+out/
+
+.vscode/
+.idea/
+*.swp
