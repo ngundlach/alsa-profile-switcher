@@ -8,10 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const up int = -1
-const down int = 1
-
-type UiState struct {
+type UIState struct {
 	cards         []pactl.Card
 	profileKeys   []string
 	cursorPos     int
@@ -29,11 +26,57 @@ const (
 	errorScreen
 )
 
-func (ui *UiState) Init() tea.Cmd {
+const (
+	up   int = -1
+	down int = 1
+)
+
+func InitialState() *UIState {
+	return &UIState{currentScreen: deviceScreen}
+}
+
+func (ui *UIState) Init() tea.Cmd {
 	return fetchCardDataCmd
 }
 
-func (ui *UiState) handleSelection() (tea.Model, tea.Cmd) {
+func (ui *UIState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		return ui.handleKeyMsg(msg.String())
+	case dataFetchedMsg:
+		ui.loading = false
+		ui.cards = msg.cards
+		return ui, nil
+	case errorMsg:
+		ui.err = msg.err
+		ui.currentScreen = errorScreen
+		ui.loading = false
+		return ui, nil
+	case profileChangedMsg:
+		ui.loading = false
+		return ui, fetchCardDataCmd
+	}
+	return ui, nil
+}
+
+func (ui *UIState) View() string {
+	s := ""
+	if ui.loading {
+		s += "loading"
+	} else {
+		switch ui.currentScreen {
+		case deviceScreen:
+			s += ui.renderDeviceListScreen()
+		case profileScreen:
+			s += ui.renderProfileListScreen()
+		case errorScreen:
+			s += ui.renderErrorScreen()
+		}
+	}
+	return s
+}
+
+func (ui *UIState) handleSelection() (tea.Model, tea.Cmd) {
 	switch ui.currentScreen {
 	case deviceScreen:
 		ui.selectedCard = ui.cursorPos
@@ -47,7 +90,8 @@ func (ui *UiState) handleSelection() (tea.Model, tea.Cmd) {
 	}
 	return ui, nil
 }
-func (ui *UiState) returnToDeviceScreen() {
+
+func (ui *UIState) returnToDeviceScreen() {
 	switch ui.currentScreen {
 	case profileScreen:
 		ui.cursorPos = ui.selectedCard
@@ -55,7 +99,8 @@ func (ui *UiState) returnToDeviceScreen() {
 		ui.profileKeys = nil
 	}
 }
-func (ui *UiState) handleKeyMsg(msg string) (tea.Model, tea.Cmd) {
+
+func (ui *UIState) handleKeyMsg(msg string) (tea.Model, tea.Cmd) {
 	if ui.loading {
 		if msg == "q" || msg == "ctrl+c" {
 			return ui, tea.Quit
@@ -77,33 +122,13 @@ func (ui *UiState) handleKeyMsg(msg string) (tea.Model, tea.Cmd) {
 		ui.returnToDeviceScreen()
 		return ui, nil
 	case "r":
-		ui = &UiState{currentScreen: deviceScreen}
+		ui = &UIState{currentScreen: deviceScreen}
 		return ui, fetchCardDataCmd
 	}
 	return ui, nil
 }
 
-func (ui *UiState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		return ui.handleKeyMsg(msg.String())
-	case dataFetchedMsg:
-		ui.loading = false
-		ui.cards = msg.cards
-		return ui, nil
-	case errorMsg:
-		ui.err = msg.err
-		ui.currentScreen = errorScreen
-		ui.loading = false
-		return ui, nil
-	case profileChangedMsg:
-		ui.loading = false
-		return ui, fetchCardDataCmd
-	}
-	return ui, nil
-}
-
-func (ui *UiState) changeCursor(change int) int {
+func (ui *UIState) changeCursor(direction int) int {
 	length := 0
 	switch ui.currentScreen {
 	case deviceScreen:
@@ -111,16 +136,16 @@ func (ui *UiState) changeCursor(change int) int {
 	case profileScreen:
 		length = len(ui.cards[ui.selectedCard].Profiles)
 	}
-	newCursor := ui.cursorPos + change
+	newCursor := ui.cursorPos + direction
 	if newCursor > length-1 || newCursor < 0 {
 		return ui.cursorPos
 	}
-	return ui.cursorPos + change
+	return ui.cursorPos + direction
 }
 
-func (ui *UiState) renderProfileListScreen() string {
+func (ui *UIState) renderProfileListScreen() string {
 	s := "Select profile:\n\n"
-	cursor := " "
+	var cursor string
 	for i, v := range ui.profileKeys {
 		active := " "
 		if ui.cards[ui.selectedCard].ActiveProfile == v {
@@ -137,9 +162,9 @@ func (ui *UiState) renderProfileListScreen() string {
 	return s
 }
 
-func (ui *UiState) renderDeviceListScreen() string {
+func (ui *UIState) renderDeviceListScreen() string {
 	s := "Select device:\n\n"
-	cursor := " "
+	var cursor string
 	for i, v := range ui.cards {
 		if i == ui.cursorPos {
 			cursor = ">"
@@ -152,29 +177,9 @@ func (ui *UiState) renderDeviceListScreen() string {
 	return s
 }
 
-func (ui *UiState) renderErrorScreen() string {
+func (ui *UIState) renderErrorScreen() string {
 	s := "An error occured:\n\n"
 	s += fmt.Sprintf("%v\n", ui.err)
 	s += "\nPress 'q' top quit. 'r' to reload.\n"
 	return s
-}
-func (ui *UiState) View() string {
-	s := ""
-	if ui.loading {
-		s += "loading"
-	} else {
-		switch ui.currentScreen {
-		case deviceScreen:
-			s += ui.renderDeviceListScreen()
-		case profileScreen:
-			s += ui.renderProfileListScreen()
-		case errorScreen:
-			s += ui.renderErrorScreen()
-		}
-	}
-	return s
-}
-
-func InitialState() *UiState {
-	return &UiState{currentScreen: deviceScreen}
 }
