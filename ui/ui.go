@@ -15,7 +15,8 @@ type UIState struct {
 	cursorPos     int
 	err           error
 	currentScreen screen
-	selectedCard  int
+	selectedCard  pactl.Card
+	selectedCardPos int
 	loading       bool
 }
 
@@ -47,6 +48,9 @@ func (ui *UIState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dataFetchedMsg:
 		ui.loading = false
 		ui.cards = msg.cards
+		if ui.currentScreen == profileScreen {
+			ui.validateProfileScreen()
+		}
 		return ui, nil
 	case errorMsg:
 		ui.err = msg.err
@@ -59,7 +63,21 @@ func (ui *UIState) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return ui, nil
 }
-
+func (ui *UIState) validateProfileScreen() {
+found := false;
+for i, card := range ui.cards {
+	if card.Index == ui.selectedCard.Index {
+		ui.selectedCard = card
+		ui.selectedCardPos = i
+		found = true
+		break
+	}
+}
+if !found {
+	ui.err = fmt.Errorf("selected device is no longer available")
+	ui.currentScreen = errorScreen
+}
+}
 func (ui *UIState) View() string {
 	s := ""
 	if ui.loading {
@@ -80,14 +98,15 @@ func (ui *UIState) View() string {
 func (ui *UIState) handleSelection() (tea.Model, tea.Cmd) {
 	switch ui.currentScreen {
 	case deviceScreen:
-		ui.selectedCard = ui.cursorPos
+		ui.selectedCardPos = ui.cursorPos
+		ui.selectedCard = ui.cards[ui.selectedCardPos]
 		ui.currentScreen = profileScreen
 		ui.cursorPos = 0
-		ui.profileKeys = pactl.SortKeys(ui.cards[ui.selectedCard].Profiles)
+		ui.profileKeys = pactl.SortKeys(ui.selectedCard.Profiles)
 	case profileScreen:
 		ui.loading = true
 		profileKey := ui.profileKeys[ui.cursorPos]
-		return ui, setActiveProfileCmd(ui.cards[ui.selectedCard].Name, profileKey)
+		return ui, setActiveProfileCmd(ui.selectedCard.Name, profileKey)
 	}
 	return ui, nil
 }
@@ -95,7 +114,7 @@ func (ui *UIState) handleSelection() (tea.Model, tea.Cmd) {
 func (ui *UIState) returnToDeviceScreen() {
 	switch ui.currentScreen {
 	case profileScreen:
-		ui.cursorPos = ui.selectedCard
+		ui.cursorPos = ui.selectedCardPos
 		ui.currentScreen = deviceScreen
 		ui.profileKeys = nil
 	}
@@ -135,7 +154,7 @@ func (ui *UIState) changeCursor(direction int) int {
 	case deviceScreen:
 		length = len(ui.cards)
 	case profileScreen:
-		length = len(ui.cards[ui.selectedCard].Profiles)
+		length = len(ui.cards[ui.selectedCardPos].Profiles)
 	}
 	newCursor := ui.cursorPos + direction
 	if newCursor > length-1 || newCursor < 0 {
@@ -149,7 +168,7 @@ func (ui *UIState) renderProfileListScreen() string {
 	var cursor string
 	for i, v := range ui.profileKeys {
 		active := " "
-		if ui.cards[ui.selectedCard].ActiveProfile == v {
+		if ui.selectedCard.ActiveProfile == v {
 			active = "*"
 		}
 		if i == ui.cursorPos {

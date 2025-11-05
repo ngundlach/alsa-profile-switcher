@@ -1,6 +1,7 @@
 package pactl
 
 type Card struct {
+	Index		int	`json:"index"`
 	Name          string             `json:"name"`
 	Driver        string             `json:"driver"`
 	Properties    Properties         `json:"properties"`

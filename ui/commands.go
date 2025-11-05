@@ -9,7 +9,6 @@ import (
 func fetchCardDataCmd() tea.Msg {
 	cards, err := pactl.FetchDeviceData()
 	if err != nil {
-
 		return errorMsg{err: err}
 	}
 	return dataFetchedMsg{cards}
