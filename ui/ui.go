@@ -1,3 +1,4 @@
+// Package ui implements the terminal user interface for the application.
 package ui
 
 import (

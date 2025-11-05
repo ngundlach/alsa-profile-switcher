@@ -1,3 +1,4 @@
+// Package pactl provides functionality to interact with the pactl comandline utility
 package pactl
 
 import (
